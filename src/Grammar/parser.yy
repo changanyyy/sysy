@@ -64,12 +64,18 @@ namespace grammar {
 
 
 
-%type <UniPtrVec<GloDecl>>    CompUnit
-%type <GloDecl *>  GlobalDecl
-%type <ConstDecl *> ConstantDecl 
-%type <VarDecl *> VariableDecl
-%type <FuncDecl *> FunctionDecl
-%type <UniPtr<EnumType>>   BType   
+%type <UniPtrVec<GloDef>> CompUnit
+%type <EnumType> BType
+%type <UniPtrVec<GloDef>>  GlobalDecl
+%type <UniPtrVec<ConstDef>> ConstantDecl 
+%type <UniPtrVec<VarDef>> VariableDecl
+%type <UniPtr<FuncDef>> FunctionDecl
+%type <UniPtrVec<ConstDef>> ConstantDefList
+%type <UniPtrVec<VarDef>> VariableDefList
+%type <UniPtr<ConstDef>> ConstantDef
+%type <UniPtr<ConstDef>> VariableDef
+
+
 %type <node>    ConstDef        ConstDef2
 %type <node>    ConstInitVal    ConstInitVal2
 %type <node>    VarDecl         VarDecl2
@@ -97,18 +103,19 @@ namespace grammar {
 %type <node>    LOrExp
 %type <node>    ConstExp
 
-
 %start Program
+
 %%
-Program: 
+
+Program:
   CompUnit END {
-    $$ = make_unique<Unit>(); 
+    $$ = make_shared<Unit>($1);
   };
 
 //1.编译单元 
 CompUnit:
   CompUnit GlobalDecl {
-    $1.push_back(UniPtr<GlobalDecl>($2));
+    $1.push_back(Ptr<GlobalDecl>($2));
     $$ = $1;
   }
   | %empty {
@@ -117,32 +124,63 @@ CompUnit:
 
 GlobalDecl:
   ConstantDecl {
-
+    $$ = PtrVec<GloDef>();
+    $$.insert($$.end(), $1.begin(), $1.end());
   }
   | VariableDecl {
-
+    $$ = PtrVec<GloDef>();
+    $$.insert($$.end(), $1.begin(), $1.end());
   }
   | FunctionDecl {
-
-  }
+    $$ = UniPtrVector<GloDef>();
+    $$.push_back($1);
+  };
   
-//%type <UniPtrVec<GloDecl>>    CompUnit
-//%type <GloDecl *>  GlobalDecl
-//%type <UniPtr<ConstDecl>> ConstantDecl 
-//%type <UniPtr<VarDecl>> VariableDecl
-//%type <UniPtr<EnumType>>   BType   
+ConstantDecl: 
+  CONST BType ConstantDefList SEMI {
+    for(auto &def: $3){
+      def.setBType($2);
+    }
+    $$ = $3;
+  };
 
-//3.常量声明
-ConstDecl: CONST BType ConstDef ConstDecl2 SEMI     { $$ = new Node("ConstDecl", @$.first_line, 5, $1, $2, $3, $4, $5); } 
-         ;
-ConstDecl2: COMMA ConstDef ConstDecl2               { $$ = new Node("ConstDecl2", @$.first_line, 3, $1, $2, $3); } 
-		  |                                         { $$ = new Node("ConstDecl2", @$.first_line, 0); }
-          ;
+ConstantDefList:
+  ConstantDef {
+    $$ = PtrVec<ConstDef>();
+    $$.push_back($1);
+  }
+  | ConstantDefList COMMA ConstantDef {
+    $1.push_back($3);
+    $$ = $1;
+  };
 
-//4.基本类型
-BType: INT                                          { $$ = new Node("BType", @$.first_line, 1, $1); }
- 	 | FLOAT                                        { $$ = new Node("BType", @$.first_line, 1, $1); }
-     ;
+VariableDecl: 
+  CONST BType VariableDefList SEMI {
+    for(auto &def: $3){
+      def.setBType($2);
+    }
+    $$ = $3;
+  };
+
+VariableDefList:
+  VariableDef {
+    $$ = PtrVec<VariableDef>();
+    $$.push_back($1);
+  }
+  | VariableDefList COMMA VariableDef {
+    $1.push_back($3);
+    $$ = $1;
+  };
+
+BType: 
+  INT { $$ = EnumType::I32; }
+ 	| FLOAT { $$ = EnumType::FLOAT; };
+
+
+
+
+
+
 
 //5.常数定义
 ConstDef: IDENT ConstDef2 ASSIGNOP ConstInitVal     { $$ = new Node("ConstDef", @$.first_line, 4, $1, $2, $3, $4); }
